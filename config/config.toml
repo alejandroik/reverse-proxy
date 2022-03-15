@@ -1,0 +1,15 @@
+# Server config
+SERVER_PORT = "8080"
+REMOTE_URL = "https://api.mercadolibre.com"
+
+# IP Rate Limiter config
+IP_RATE_ENABLED = true
+IP_RATE_LIMIT = 1
+IP_BURST_LIMIT = 1
+IP_CLEAN_INTERVAL = 5
+
+# PATH Rate Limiter config
+PATH_RATE_ENABLED = false
+PATH_RATE_LIMIT = 1
+PATH_BURST_LIMIT = 1
+PATH_CLEAN_INTERVAL = 5
