@@ -1,11 +1,11 @@
 package limiter
 
 import (
-	"log"
 	"sync"
 	"time"
 
 	"github.com/alejandroik/reverse-proxy/config"
+	"github.com/alejandroik/reverse-proxy/logger"
 
 	"golang.org/x/time/rate"
 )
@@ -35,13 +35,13 @@ func InitLimiters(c config.Configuration) []*LimiterGroup {
     if c.IP_RATE_ENABLED {
         rc := newRateConfig(c.IP_RATE_LIMIT, c.IP_BURST_LIMIT)
         limiters = append(limiters, newLimiterGroup("IP", rc, c.IP_CLEAN_INTERVAL))
-        log.Print("[IP-Limiter] Started")
+        logger.Info("[IP-Limiter] Started")
     }
 
     if c.PATH_RATE_ENABLED {
         rc := newRateConfig(c.PATH_RATE_LIMIT, c.PATH_BURST_LIMIT)
         limiters = append(limiters, newLimiterGroup("PATH", rc, c.PATH_CLEAN_INTERVAL))
-        log.Print("[PATH-Limiter] Started")
+        logger.Info("[PATH-Limiter] Started")
     }
 
     for _, lg := range limiters {
@@ -54,13 +54,13 @@ func InitLimiters(c config.Configuration) []*LimiterGroup {
 func (lg *LimiterGroup) cleanup() {
 	for {
 		time.Sleep(lg.interval)
-        log.Printf("[%s-Limiter] Checking for old entries...", lg.Name)
+        logger.Infof("[%s-Limiter] Checking for old entries...", lg.Name)
 
 		lg.mu.Lock()
 		for k, v := range lg.data {
 			if time.Since(v.lastSeen) >= lg.interval {
 				delete(lg.data, k)
-                log.Printf("[%s-Limiter] Removed entry for %s", lg.Name, k)
+                logger.Infof("[%s-Limiter] Removed entry for %s", lg.Name, k)
 			}
 		}
 		lg.mu.Unlock()
@@ -90,7 +90,7 @@ func (lg *LimiterGroup) add(k string) *visitor {
 
     rateLimiter := rate.NewLimiter(lg.RC.r, lg.RC.b)
     lg.data[k] = &visitor{rateLimiter, 1, time.Now()}
-    log.Printf("[%s-Limiter] Added entry for %s", lg.Name, k)
+    logger.Infof("[%s-Limiter] Added entry for %s", lg.Name, k)
 
     return lg.data[k]
 }
