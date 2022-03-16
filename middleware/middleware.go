@@ -8,6 +8,7 @@ import (
 	"github.com/alejandroik/reverse-proxy/utils"
 )
 
+// Limit checks the request rate and returns a handler that returns 429 if the rate is exceeded
 func Limit(next http.Handler, limiters []*limiter.LimiterGroup) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
         for _, lg := range limiters {

@@ -11,11 +11,13 @@ import (
 	"github.com/alejandroik/reverse-proxy/utils"
 )
 
+// Proxy is a reverse proxy that redirects requests to the remote server
 type Proxy struct {
 	url *url.URL
 	rp *httputil.ReverseProxy
 }
 
+// InitProxy initializes a reverse proxy and returns it
 func InitProxy(c config.Configuration) *Proxy {
 	if strings.TrimSpace(c.REMOTE_URL) == "" {
 		logger.Fatal("REMOTE_URL not set")
@@ -28,6 +30,7 @@ func InitProxy(c config.Configuration) *Proxy {
 	return &Proxy{url, rp}
 }
 
+// Redirect redirects the request to the remote server
 func (p *Proxy) Redirect(w http.ResponseWriter, req *http.Request) {
 	ip, err := utils.GetIP(req)
 	if err != nil {
@@ -36,5 +39,5 @@ func (p *Proxy) Redirect(w http.ResponseWriter, req *http.Request) {
 	}
 	req.Host = p.url.Host
 	p.rp.ServeHTTP(w, req)
-	logger.Infof("%s %s from %s redirected to %s\n", req.Method, req.URL.Path, ip, p.url.Host + req.URL.String())
+	logger.Infof("%s %s from %s redirected to %s", req.Method, req.URL.Path, ip, p.url.Host)
 }

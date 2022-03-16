@@ -21,6 +21,7 @@ type Configuration struct {
     PATH_CLEAN_INTERVAL int     `mapstructure:"PATH_CLEAN_INTERVAL"`
 }
 
+// GetConfig returns the configuration
 func GetConfig() Configuration {
 	config, err := loadConfig(".")
 	if err != nil {
@@ -29,6 +30,7 @@ func GetConfig() Configuration {
 	return config
 }
 
+// loadConfig loads the configuration file from the given path
 func loadConfig(path string) (config Configuration, err error) {
     viper.AddConfigPath(path)
     viper.SetConfigName("config")

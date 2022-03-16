@@ -21,6 +21,7 @@ type visitor struct {
     lastSeen time.Time
 }
 
+// LimiterGroup is a group of rate limiters
 type LimiterGroup struct {
     Name string
     interval time.Duration
@@ -29,6 +30,7 @@ type LimiterGroup struct {
     RC *rateConfig
 }
 
+// InitLimiters returns enabled rate limiter groups
 func InitLimiters(c config.Configuration) []*LimiterGroup {
     var limiters []*LimiterGroup
 
@@ -51,6 +53,7 @@ func InitLimiters(c config.Configuration) []*LimiterGroup {
     return limiters
 }
 
+// cleanup removes expired entries from the limiter group
 func (lg *LimiterGroup) cleanup() {
 	for {
 		time.Sleep(lg.interval)
@@ -67,6 +70,7 @@ func (lg *LimiterGroup) cleanup() {
 	}
 }
 
+// newRateConfig returns a new rate config
 func newRateConfig(r int, b int) *rateConfig {
     return &rateConfig{
         r: rate.Limit(r),
@@ -74,6 +78,7 @@ func newRateConfig(r int, b int) *rateConfig {
     }
 }
 
+// newLimiterGroup returns a new limiter group
 func newLimiterGroup(name string, rc *rateConfig, interval int) *LimiterGroup {
     return &LimiterGroup{
         Name: name,
@@ -84,28 +89,35 @@ func newLimiterGroup(name string, rc *rateConfig, interval int) *LimiterGroup {
     }
 }
 
+// add adds a new rate limiter for a given key
 func (lg *LimiterGroup) add(k string) *visitor {
-    lg.mu.Lock()
-    defer lg.mu.Unlock()
-
-    rateLimiter := rate.NewLimiter(lg.RC.r, lg.RC.b)
-    lg.data[k] = &visitor{rateLimiter, 1, time.Now()}
-    logger.Infof("[%s-Limiter] Added entry for %s", lg.Name, k)
-
-    return lg.data[k]
-}
-
-func (lg *LimiterGroup) GetVisitor(k string) *visitor {
-    lg.mu.Lock()
-    v, exists := lg.data[k]
-    if !exists {
-        lg.mu.Unlock()
-        return lg.add(k)
+    v := &visitor{
+        RL: rate.NewLimiter(lg.RC.r, lg.RC.b),
+        conCount: 1,
+        lastSeen: time.Now(),
     }
 
+    lg.mu.Lock()
+    lg.data[k] = v
     lg.mu.Unlock()
 
-    v.conCount += 1
+    logger.Infof("[%s-Limiter] Added entry for %s", lg.Name, k)
+    
+    return v
+}
+
+// GetVisitor returns a rate limiter for a given key if it exists, otherwise it creates a new one
+func (lg *LimiterGroup) GetVisitor(k string) *visitor {
+    lg.mu.RLock()
+    v, exists := lg.data[k]
+    lg.mu.RUnlock()
+
+    if !exists {
+        v = lg.add(k)
+    }
+
     v.lastSeen = time.Now()
+    v.conCount++
+
     return v
 }
