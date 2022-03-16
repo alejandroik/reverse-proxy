@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	"github.com/alejandroik/reverse-proxy/config"
 	"github.com/alejandroik/reverse-proxy/logger"
@@ -16,12 +17,15 @@ type Proxy struct {
 }
 
 func InitProxy(c config.Configuration) *Proxy {
+	if strings.TrimSpace(c.REMOTE_URL) == "" {
+		logger.Fatal("REMOTE_URL not set")
+	}
 	url, err := url.Parse(c.REMOTE_URL)
 	if err != nil {
 		panic(err)
 	}
-	proxy := httputil.NewSingleHostReverseProxy(url)
-	return &Proxy{url, proxy}
+	rp := httputil.NewSingleHostReverseProxy(url)
+	return &Proxy{url, rp}
 }
 
 func (p *Proxy) Redirect(w http.ResponseWriter, req *http.Request) {
