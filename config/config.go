@@ -22,7 +22,7 @@ type Configuration struct {
 }
 
 func GetConfig() Configuration {
-	config, err := loadConfig("./config")
+	config, err := loadConfig(".")
 	if err != nil {
 		log.Fatal(err)
 	}
