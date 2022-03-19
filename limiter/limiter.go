@@ -1,6 +1,7 @@
 package limiter
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,114 +11,145 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type rateConfig struct {
-    r   rate.Limit
-    b   int
-}
-
-type visitor struct {
+type limiter struct {
     RL *rate.Limiter
-    conCount int
-    lastSeen time.Time
+    ConCount int
+    LastCon time.Time
 }
 
 // LimiterGroup is a group of rate limiters
 type LimiterGroup struct {
     Name string
     interval time.Duration
-    data map[string]*visitor
+    cls map[string]*limiter
     mu *sync.RWMutex
-    RC *rateConfig
+    Limiter *limiter
+    RateConfig config.RateConfig
 }
 
+type getFunc func() *limiter
+type addFunc func(*limiter)
+
+type Limiters map[string]*LimiterGroup
+
 // InitLimiters returns enabled rate limiter groups
-func InitLimiters(c config.Configuration) []*LimiterGroup {
-    var limiters []*LimiterGroup
+func InitLimiters(cfg *config.Config) Limiters {
+    var limiters = make(Limiters)
 
-    if c.IP_RATE_ENABLED {
-        rc := newRateConfig(c.IP_RATE_LIMIT, c.IP_BURST_LIMIT)
-        limiters = append(limiters, newLimiterGroup("IP", rc, c.IP_CLEAN_INTERVAL))
-        logger.Info("[IP-Limiter] Started")
-    }
-
-    if c.PATH_RATE_ENABLED {
-        rc := newRateConfig(c.PATH_RATE_LIMIT, c.PATH_BURST_LIMIT)
-        limiters = append(limiters, newLimiterGroup("PATH", rc, c.PATH_CLEAN_INTERVAL))
-        logger.Info("[PATH-Limiter] Started")
-    }
-
-    for _, lg := range limiters {
-        go lg.cleanup()
+    for _, e := range cfg.Endpoints {
+        if e.RateConfig.RateLimit <= 0 && e.RateConfig.ClientRateLimit <= 0 {
+            continue
+        }
+        if e.RateConfig.Enabled {
+            limiters.AddLimiterGroup(e)
+        } 
     }
 
     return limiters
+}
+
+func (limiters Limiters) AddLimiterGroup(e config.Endpoint) {
+    lg := newLimiterGroup(e.Endpoint, e.RateConfig)
+    if e.RateConfig.RateLimit > 0 {
+        lg.Limiter = newLimiter(e.RateConfig.RateLimit, e.RateConfig.RateLimit)
+    }
+    limiters[e.Endpoint] = lg
+    go lg.cleanup()
+    logger.Info(fmt.Sprintf("[Limiter] Started limiter for %s", lg.Name))
 }
 
 // cleanup removes expired entries from the limiter group
 func (lg *LimiterGroup) cleanup() {
 	for {
 		time.Sleep(lg.interval)
-        logger.Infof("[%s-Limiter] Checking for old entries...", lg.Name)
+        logger.Info(fmt.Sprintf("[Limiter] Checking for old entries in %s", lg.Name))
 
 		lg.mu.Lock()
-		for k, v := range lg.data {
-			if time.Since(v.lastSeen) >= lg.interval {
-				delete(lg.data, k)
-                logger.Infof("[%s-Limiter] Removed entry for %s", lg.Name, k)
+		for k, v := range lg.cls {
+			if time.Since(v.LastCon) >= lg.interval {
+				delete(lg.cls, k)
+                logger.Info(fmt.Sprintf("[Limiter] Removed entry for %s in %s", k, lg.Name))
 			}
 		}
 		lg.mu.Unlock()
 	}
 }
 
-// newRateConfig returns a new rate config
-func newRateConfig(r int, b int) *rateConfig {
-    return &rateConfig{
-        r: rate.Limit(r),
-        b: b,
+func newLimiter(r int, b int) *limiter {
+    return &limiter{
+        RL: rate.NewLimiter(rate.Limit(r), b),
+        ConCount: 0,
+        LastCon: time.Now(),
     }
 }
 
 // newLimiterGroup returns a new limiter group
-func newLimiterGroup(name string, rc *rateConfig, interval int) *LimiterGroup {
+func newLimiterGroup(name string, rc config.RateConfig) *LimiterGroup {
     return &LimiterGroup{
         Name: name,
-        interval: time.Minute*time.Duration(interval),
-        data: make(map[string]*visitor),
+        interval: time.Minute*time.Duration(rc.CleanInterval),
+        cls: make(map[string]*limiter),
         mu:  &sync.RWMutex{},
-        RC: rc,
+        RateConfig: rc,
     }
 }
 
-// add adds a new rate limiter for a given key
-func (lg *LimiterGroup) add(k string) *visitor {
-    v := &visitor{
-        RL: rate.NewLimiter(lg.RC.r, lg.RC.b),
-        conCount: 1,
-        lastSeen: time.Now(),
+func (lg *LimiterGroup) GetClientLimiter(k string) *limiter {
+    get := func() *limiter {
+        lg.mu.RLock()
+        l := lg.cls[k]
+        lg.mu.RUnlock()
+
+        return l
     }
 
-    lg.mu.Lock()
-    lg.data[k] = v
-    lg.mu.Unlock()
+    add := func(l *limiter) {
+        lg.mu.Lock()
+        lg.cls[k] = l
+        lg.mu.Unlock()
 
-    logger.Infof("[%s-Limiter] Added entry for %s", lg.Name, k)
-    
-    return v
+        logger.Info(fmt.Sprintf("[Limiter] Added entry for %s in %s", k, lg.Name))
+    }
+
+    return getLimiter(get, add, lg.RateConfig.ClientRateLimit)
 }
 
-// GetVisitor returns a rate limiter for a given key if it exists, otherwise it creates a new one
-func (lg *LimiterGroup) GetVisitor(k string) *visitor {
+func getLimiter(get getFunc, add addFunc, r int) *limiter {
+    l := get()
+
+    if l == nil {
+        l = newLimiter(r, r)
+        add(l)
+    }
+
+    l.ConCount++
+    return l
+}
+
+func (lg *LimiterGroup) GetEndpointLimiter() *limiter { 
+    get := func() *limiter {
+        lg.mu.RLock()
+        l := lg.Limiter
+        lg.mu.RUnlock()
+
+        return l
+    }
+
+    add := func(l *limiter) {
+        lg.mu.Lock()
+        lg.Limiter = l
+        lg.mu.Unlock()
+
+        logger.Info(fmt.Sprintf("[Limiter] Added limiter for %s", lg.Name))
+    }
+
+    return getLimiter(get, add, lg.RateConfig.RateLimit)
+}
+
+func (lg *LimiterGroup) GetRateConfig() *config.RateConfig {
     lg.mu.RLock()
-    v, exists := lg.data[k]
+    rc := lg.RateConfig
     lg.mu.RUnlock()
 
-    if !exists {
-        v = lg.add(k)
-    }
-
-    v.lastSeen = time.Now()
-    v.conCount++
-
-    return v
+    return &rc
 }

@@ -13,17 +13,13 @@ func init() {
 }
 
 func Info(message string) {
-	logger.Sugar().Info(message)
-}
-
-func Infof(message string, args ...interface{}) {
-	logger.Sugar().Infof(message, args...)
+	logger.Info(message)
 }
 
 func Error(message string) {
-	logger.Sugar().Error(message)
+	logger.Error(message)
 }
 
-func Fatal(args ...interface{}) {
-	logger.Sugar().Fatal(args...)
+func Fatal(message string) {
+	logger.Fatal(message)
 }
