@@ -5,14 +5,12 @@ server:
 endpoints:
   - endpoint: "/categories"
     rate_config:
-      enabled: true
       rate_limit: 1
       client_rate_limit: 1
       clean_interval: 5
 
   - endpoint: "/items"
     rate_config:
-      enabled: true
       rate_limit: 50
       client_rate_limit: 1
       clean_interval: 5

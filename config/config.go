@@ -22,7 +22,6 @@ type Endpoint struct {
 }
 
 type RateConfig struct {
-    Enabled         bool    `mapstructure:"enabled"`
     RateLimit       int     `mapstructure:"rate_limit"`
     ClientRateLimit int     `mapstructure:"client_rate_limit"`
     CleanInterval   int     `mapstructure:"clean_interval"`

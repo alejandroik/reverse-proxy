@@ -40,9 +40,7 @@ func InitLimiters(cfg *config.Config) Limiters {
         if e.RateConfig.RateLimit <= 0 && e.RateConfig.ClientRateLimit <= 0 {
             continue
         }
-        if e.RateConfig.Enabled {
-            limiters.AddLimiterGroup(e)
-        } 
+        limiters.AddLimiterGroup(e)
     }
 
     return limiters
