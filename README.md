@@ -1,6 +1,6 @@
 # reverse-proxy
 
-Is a simple reverse-proxy written in go, it provides rate-limiting and statistics/metrics through Prometheus/Grafana.
+Is a simple reverse proxy written in go, it provides rate-limiting and statistics/metrics through Prometheus/Grafana.
 
 # Install
 
@@ -69,6 +69,15 @@ Start the proxy
 2022-03-21T12:19:17.220-0300	INFO	limiter/limiter.go:57	[Limiter] Started limiter for /categories
 2022-03-21T12:19:17.220-0300	INFO	limiter/limiter.go:57	[Limiter] Started limiter for /items
 2022-03-21T12:19:17.220-0300	INFO	reverse-proxy/main.go:32	Listening on 8080
+```
+
+To start Prometheus and Grafana a docker-compose file is provided
+
+```bash
+docker-compose -d up
+Creating grafana    ... done
+Creating rev-proxy  ... done
+Creating prometheus ... done
 ```
 
 ## License
