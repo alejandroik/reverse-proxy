@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -8,21 +10,20 @@ import (
 
 	"github.com/alejandroik/reverse-proxy/config"
 	"github.com/alejandroik/reverse-proxy/logger"
-	"github.com/alejandroik/reverse-proxy/utils"
 )
 
 // Proxy is a reverse proxy that redirects requests to the remote server
 type Proxy struct {
 	url *url.URL
-	rp *httputil.ReverseProxy
+	rp  *httputil.ReverseProxy
 }
 
 // InitProxy initializes a reverse proxy and returns it
-func InitProxy(c config.Configuration) *Proxy {
-	if strings.TrimSpace(c.REMOTE_URL) == "" {
-		logger.Fatal("REMOTE_URL not set")
+func InitProxy(cfg *config.Config) *Proxy {
+	if strings.TrimSpace(cfg.Server.RemoteHost) == "" {
+		logger.Fatal("remote_host is not set")
 	}
-	url, err := url.Parse(c.REMOTE_URL)
+	url, err := url.Parse(cfg.Server.RemoteHost)
 	if err != nil {
 		panic(err)
 	}
@@ -32,12 +33,12 @@ func InitProxy(c config.Configuration) *Proxy {
 
 // Redirect redirects the request to the remote server
 func (p *Proxy) Redirect(w http.ResponseWriter, req *http.Request) {
-	ip, err := utils.GetIP(req)
+	ip, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
 		logger.Error(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	req.Host = p.url.Host
 	p.rp.ServeHTTP(w, req)
-	logger.Infof("%s %s from %s redirected to %s", req.Method, req.URL.Path, ip, p.url.Host)
+	logger.Info(fmt.Sprintf("%s %s from %s redirected to %s", req.Method, req.URL.Path, ip, p.url.Host))
 }

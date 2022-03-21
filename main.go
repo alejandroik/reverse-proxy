@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/alejandroik/reverse-proxy/config"
@@ -8,17 +9,27 @@ import (
 	"github.com/alejandroik/reverse-proxy/logger"
 	"github.com/alejandroik/reverse-proxy/middleware"
 	"github.com/alejandroik/reverse-proxy/proxy"
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
-	var c config.Configuration = config.GetConfig()
+	cfg := config.GetConfig(".")
 
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
 
-	p := proxy.InitProxy(c)
-	mux.HandleFunc("/", p.Redirect)
+	l := limiter.InitLimiters(cfg)
+	p := proxy.InitProxy(cfg)
 
-	l := limiter.InitLimiters(c)
-	logger.Infof("Listening on %s", c.SERVER_PORT)
-	logger.Fatal(http.ListenAndServe(":"+c.SERVER_PORT, middleware.Limit(mux, l)))
+	m := middleware.Middleware{}
+	m.InitMiddleware(l)
+
+	r.Use(middleware.Prometheus, m.Limit)
+
+	r.Path("/metrics").Handler(promhttp.Handler())
+	r.PathPrefix("/").HandlerFunc(p.Redirect)
+
+	logger.Info(fmt.Sprintf("Listening on %s", cfg.Server.Port))
+	err := http.ListenAndServe(fmt.Sprintf(":%s", cfg.Server.Port), r)
+	logger.Fatal(err.Error())
 }

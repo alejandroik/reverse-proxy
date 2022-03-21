@@ -6,24 +6,30 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Configuration struct {
-	SERVER_PORT         string  `mapstructure:"SERVER_PORT"`
-	REMOTE_URL          string  `mapstructure:"REMOTE_URL"`
+type Config struct {
+	Server   Server    `mapstructure:"server"`
+	Limiters []Limiter `mapstructure:"limiters"`
+}
 
-    IP_RATE_ENABLED     bool    `mapstructure:"IP_RATE_ENABLED"`
-	IP_RATE_LIMIT       int     `mapstructure:"IP_RATE_LIMIT"`
-    IP_BURST_LIMIT      int     `mapstructure:"IP_BURST_LIMIT"`
-    IP_CLEAN_INTERVAL   int     `mapstructure:"IP_CLEAN_INTERVAL"`
+type Server struct {
+	Port       string `mapstructure:"port"`
+	RemoteHost string `mapstructure:"remote_host"`
+}
 
-    PATH_RATE_ENABLED   bool    `mapstructure:"PATH_RATE_ENABLED"`
-    PATH_RATE_LIMIT     int     `mapstructure:"PATH_RATE_LIMIT"`
-    PATH_BURST_LIMIT    int     `mapstructure:"PATH_BURST_LIMIT"`
-    PATH_CLEAN_INTERVAL int     `mapstructure:"PATH_CLEAN_INTERVAL"`
+type Limiter struct {
+	Endpoint   string     `mapstructure:"endpoint"`
+	RateConfig RateConfig `mapstructure:"rate_config"`
+}
+
+type RateConfig struct {
+	RateLimit       int `mapstructure:"rate_limit"`
+	ClientRateLimit int `mapstructure:"client_rate_limit"`
+	CleanInterval   int `mapstructure:"clean_interval"`
 }
 
 // GetConfig returns the configuration
-func GetConfig() Configuration {
-	config, err := loadConfig(".")
+func GetConfig(path string) *Config {
+	config, err := loadConfig(path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,17 +37,19 @@ func GetConfig() Configuration {
 }
 
 // loadConfig loads the configuration file from the given path
-func loadConfig(path string) (config Configuration, err error) {
-    viper.AddConfigPath(path)
-    viper.SetConfigName("config")
+func loadConfig(path string) (cfg *Config, err error) {
+	viper.AddConfigPath(path)
+	viper.SetConfigName("config")
 
-    viper.AutomaticEnv()
+	viper.AutomaticEnv()
 
-    err = viper.ReadInConfig()
-    if err != nil {
-        return
-    }
+	viper.SetDefault("Server.Port", "8080")
 
-    err = viper.Unmarshal(&config)
-    return
+	err = viper.ReadInConfig()
+	if err != nil {
+		return
+	}
+
+	err = viper.Unmarshal(&cfg)
+	return
 }
