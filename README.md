@@ -85,7 +85,7 @@ Creating prometheus ... done
 
 Two metrics are provided:
 
-- `http_requests_total` is a counter for the total http request by ip, method and path
+- `http_requests_total` is a counter for the total http requests by ip, method and path
 - `http_response_time_seconds` is a histogram of the response time of the requests by ip, method and path
 
 ```bash
