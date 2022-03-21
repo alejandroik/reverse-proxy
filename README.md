@@ -81,6 +81,33 @@ Creating rev-proxy  ... done
 Creating prometheus ... done
 ```
 
+## Prometheus
+
+Two metrics are provided:
+
+- `http_requests_total` is a counter for the total http request by ip, method and path
+- `http_response_time_seconds` is a histogram of the response time of the requests by ip, method and path
+
+```bash
+## Top 5 number of requests by different criteria
+topk(5, sum by(ip) (http_requests_total))
+{ip="172.22.0.3"} 82
+
+topk(5, sum by(method) (http_requests_total))
+{method="GET"} 98
+
+topk(5, sum by(path) (http_requests_total))
+{path="/"} 87
+{path="/categories"} 12
+{path="/items"} 1
+
+## Combination of criteria
+topk(5, sum by(path, ip) (http_requests_total))
+{ip="172.22.0.3", path="/"} 70
+{ip="172.22.0.1", path="/categories"} 12
+{ip="172.22.0.1", path="/items"} 1
+```
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
