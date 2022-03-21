@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	cfg := config.GetConfig()
+	cfg := config.GetConfig(".")
 
 	r := mux.NewRouter()
 
@@ -22,7 +22,7 @@ func main() {
 	p := proxy.InitProxy(cfg)
 
 	m := middleware.Middleware{}
-	m.InitMiddleware(l, cfg)
+	m.InitMiddleware(l)
 
 	r.Use(middleware.Prometheus, m.Limit)
 

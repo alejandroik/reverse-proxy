@@ -10,30 +10,45 @@ import (
 )
 
 func TestLimiterMiddleware(t *testing.T) {
-	t.Run("Should return a handler that returns 429 if the rate is exceeded", func(t *testing.T) {
-		// Given
-		cfg := config.GetConfig()
-		l := limiter.InitLimiters(cfg)
-		m := Middleware{}
-		m.InitMiddleware(l, cfg)
+	// Given
+	var cfg *config.Config = &config.Config{}
+	var ok, ko int
 
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})
-
-		// When
-		handler := m.Limit(next)
-		req, err := http.NewRequest("GET", "/", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-
-		// Then
-		if status := rr.Code; status != http.StatusOK {
-			t.Errorf("handler returned wrong status code: got %v want %v",
-				status, http.StatusOK)
-		}
+	r := 2
+	cfg.Limiters = append(cfg.Limiters, config.Limiter{
+		Endpoint: "/",
+		RateConfig: config.RateConfig{
+			RateLimit:     r,
+			CleanInterval: 10,
+		},
 	})
+
+	l := limiter.InitLimiters(cfg)
+	m := Middleware{}
+	m.InitMiddleware(l)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	// When
+	handler := m.Limit(next)
+	total := 3
+	for i := 0; i < total; i++ {
+		req, _ := http.NewRequest("GET", "/", nil)
+		rr := httptest.NewRecorder()
+
+		handler.ServeHTTP(rr, req)
+		if rr.Result().StatusCode == 200 {
+			ok++
+			continue
+		}
+		if rr.Result().StatusCode == 429 || rr.Result().StatusCode == 503 {
+			ko++
+			continue
+		}
+	}
+
+	// Then
+	if ok != 2 && ko != 1 {
+		t.Errorf("OK requests %d exceded rate limit %d", ok, r)
+	}
 }

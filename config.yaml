@@ -2,7 +2,11 @@ server:
   port: "8080"
   remote_host: https://api.mercadolibre.com
 
-endpoints:
+Limiters:
+  - endpoint: "/"
+    rate_config:
+      client_rate_limit: 10
+
   - endpoint: "/categories"
     rate_config:
       rate_limit: 1

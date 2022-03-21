@@ -15,7 +15,7 @@ import (
 // Proxy is a reverse proxy that redirects requests to the remote server
 type Proxy struct {
 	url *url.URL
-	rp *httputil.ReverseProxy
+	rp  *httputil.ReverseProxy
 }
 
 // InitProxy initializes a reverse proxy and returns it

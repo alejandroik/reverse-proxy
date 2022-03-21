@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/alejandroik/reverse-proxy/config"
 	"github.com/alejandroik/reverse-proxy/limiter"
 	"github.com/alejandroik/reverse-proxy/logger"
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,19 +13,17 @@ import (
 )
 
 type Middleware struct {
-    limiters limiter.Limiters
-    cfg *config.Config
+	limiters limiter.Limiters
 }
 
-func (m *Middleware) InitMiddleware(limiters limiter.Limiters, cfg *config.Config) {
-    m.limiters = limiters
-    m.cfg = cfg
+func (m *Middleware) InitMiddleware(limiters limiter.Limiters) {
+	m.limiters = limiters
 
-    prometheus.Register(totalRequests)
+	prometheus.Register(totalRequests)
 	prometheus.Register(httpDuration)
 }
 
-var ( 
+var (
 	totalRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -58,30 +55,47 @@ func Prometheus(next http.Handler) http.Handler {
 // Limit checks the request rate and returns a handler that returns 429 if the rate is exceeded
 func (m *Middleware) Limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-        lg, ok := m.limiters[path.Dir(req.URL.Path)]
-        if !ok {
-            next.ServeHTTP(w, req)
-            return
-        }
+		if lg, ok := m.limiters["/"]; ok {
+			allowed := getLimiters(lg, w, req)
+			if !allowed {
+				return
+			}
+		}
 
-        ip, _, err := net.SplitHostPort(req.RemoteAddr)
-        if err != nil {
-            logger.Error(err.Error())
-            http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-        }
+		lg, ok := m.limiters[path.Dir(req.URL.Path)]
+		if !ok {
+			next.ServeHTTP(w, req)
+			return
+		}
 
-        if !lg.GetClientLimiter(ip).RL.Allow(){
-            http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
-            logger.Info(fmt.Sprintf("[Limiter] Denied request to %s for %s", lg.Name, ip))
-            return
-        }
+		allowed := getLimiters(lg, w, req)
+		if !allowed {
+			return
+		}
 
-        if !lg.GetEndpointLimiter().RL.Allow() {
-            logger.Info(fmt.Sprintf("[Limiter] Rate limit exceeded for %s", lg.Name))
-            http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
-            return
-        }
+		next.ServeHTTP(w, req)
+	})
+}
 
-        next.ServeHTTP(w, req)
-    })
+func getLimiters(lg *limiter.LimiterGroup, w http.ResponseWriter, req *http.Request) bool {
+	if lg.GetRateConfig().ClientRateLimit > 0 {
+		ip, _, err := net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			logger.Error(err.Error())
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		if !lg.GetClientLimiter(ip).RL.Allow() {
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			logger.Info(fmt.Sprintf("[Limiter] Denied request to %s for %s", lg.Name, ip))
+			return false
+		}
+	}
+
+	if lg.GetRateConfig().RateLimit > 0 && !lg.GetEndpointLimiter().RL.Allow() {
+		logger.Info(fmt.Sprintf("[Limiter] Rate limit exceeded for %s", lg.Name))
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return false
+	}
+
+	return true
 }
