@@ -74,7 +74,8 @@ Start the proxy
 To start Prometheus and Grafana a docker-compose file is provided
 
 ```bash
-docker-compose -d up
+docker-compose up -d --build
+...
 Creating grafana    ... done
 Creating rev-proxy  ... done
 Creating prometheus ... done
