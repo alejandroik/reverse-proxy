@@ -108,6 +108,15 @@ topk(5, sum by(path, ip) (http_requests_total))
 {ip="172.22.0.1", path="/items"} 1
 ```
 
+## Third-Party Libraries
+
+This project uses the following very cool libraries
+
+- [gorilla/mux](https://github.com/gorilla/mux)
+- [Prometheus Go client library](https://github.com/prometheus/client_golang)
+- [Viper](https://github.com/spf13/viper)
+- [zap](https://github.com/uber-go/zap)
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
